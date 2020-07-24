@@ -1,13 +1,21 @@
+#include<stdlib.h>
 #include<stdio.h>
 #include<string.h>
 #include<malloc.h>
-#include<unistd.h>
+#ifdef _WIN32
+#include <windows.h>
+#endif
+#ifdef linux
+#include <unistd.h>
+#endif
 #include<math.h>
 
 #define ALIVE 1
 #define DEAD 0
 #define SIZE_X 30
 #define SIZE_Y 90
+//the update delay in ms
+#define DELAY 1000
 
 typedef struct {
     char **oldMap;
@@ -147,21 +155,21 @@ int countNear(maps_t *gameMap, int row, int column) {
  * implements the game logic
 */
 void game(maps_t *maps) {
-    int near;
+    int num;
     for(int i = 0; i < maps -> size_x; i++) {
         for(int j = 0; j < maps -> size_y; j++) {
-            near = countNear(maps, i, j);
+            num = countNear(maps, i, j);
             if(maps -> oldMap[i][j] == ALIVE) {
-                if(near < 2) {
+                if(num < 2) {
                     maps -> newMap[i][j] = DEAD;
-                } else if(near > 1) {
+                } else if(num > 1) {
                     maps -> newMap[i][j] = ALIVE;
                 }
-                if(near > 3) {
+                if(num > 3) {
                     maps -> newMap[i][j] = DEAD;
                 }
             } else {
-                if(near == 3) {
+                if(num == 3) {
                     maps -> newMap[i][j] = ALIVE;
                 } else {
                     maps -> newMap[i][j] = DEAD;
@@ -187,7 +195,12 @@ int main() {
     while(1) {
         printMap(maps);
         game(maps);
-        sleep(1);
+        #ifdef _WIN32
+        Sleep(DELAY);
+        #endif
+        #ifdef linux
+        sleep(DELAY / 1000);
+        #endif
     }
     freeMap(maps);
     return 0;
