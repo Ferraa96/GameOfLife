@@ -32,6 +32,9 @@ typedef struct {
     int rows;
 } maps_t;
 
+/**
+ * instanciate all the structures for the map
+*/
 void instanciateMap(maps_t *map) {
     map->oldMap = malloc(map->columns * sizeof(bool **));
     map->newMap = malloc(map->columns * sizeof(bool **));
@@ -42,7 +45,7 @@ void instanciateMap(maps_t *map) {
 }
 
 /**
- * creates the [SIZE_X] x [SIZE_Y] map
+ * creates the row x col map
 */
 void createRandomMap(maps_t *maps) {
     for (int i = 0; i < row; i++) {
@@ -58,6 +61,9 @@ void createRandomMap(maps_t *maps) {
     }
 }
 
+/**
+ * deserialize the map file in *filename path
+*/
 void deserializeMap(maps_t *maps, char *fileName) {
     FILE *file = fopen(fileName, "r");
     char alive;
@@ -68,13 +74,8 @@ void deserializeMap(maps_t *maps, char *fileName) {
     fscanf(file, "%d", &maps -> rows);
     fseek(file, 1, SEEK_CUR);
     fscanf(file, "%d", &maps -> columns);
-    maps->oldMap = malloc(maps -> columns * sizeof(bool**));
-    maps->newMap = malloc(maps -> columns * sizeof(bool**));
+    instanciateMap(maps);
     fseek(file, 2, SEEK_CUR);
-    for (int i = 0; i < maps -> columns; i++) {
-        maps->oldMap[i] = malloc(maps -> rows * sizeof(bool*));
-        maps->newMap[i] = malloc(maps -> rows * sizeof(bool*));
-    }
     for (int i = 0; i < maps -> rows; i++) {
         for(int j = 0; j < maps -> columns; j++) {
             fscanf(file, "%c", &alive);
@@ -106,6 +107,9 @@ void freeMap(GtkWidget *widget, gpointer data) {
     exit(0);
 }
 
+/**
+ * counts the neighbors of the cell in position [r, c]
+*/
 int countNear(maps_t *gameMap, int r, int c) {
     int num = 0;
     int minRow = r - 1, minCol = c - 1, maxRow = r + 2, maxCol = c + 2;
@@ -129,6 +133,9 @@ int countNear(maps_t *gameMap, int r, int c) {
     return num - gameMap->oldMap[r][c];
 }
 
+/**
+ * use the CSS file to load the graphic configurations
+*/
 void myCSS(void) {
     GtkCssProvider *provider;
     GdkDisplay *display;
@@ -146,6 +153,9 @@ void myCSS(void) {
     g_object_unref(provider);
 }
 
+/**
+ * implements the game rules
+*/
 gint gameLogic(void *mapp) {
     maps_t *map = (maps_t *)mapp;
     int num;
@@ -189,6 +199,9 @@ gint gameLogic(void *mapp) {
     }
 }
 
+/**
+ * destroys unused widget after a button is clicked
+*/
 void destroyUselessWidget(firstScreen_t *fs) {
     gtk_widget_destroy(fs -> b1);
     gtk_widget_destroy(fs -> b2);
@@ -196,6 +209,9 @@ void destroyUselessWidget(firstScreen_t *fs) {
     gtk_widget_destroy(fs -> text2);
 }
 
+/**
+ * creates a map using an existent file
+*/
 void chooseFile(GtkWidget *widget, gpointer data) {
     GtkWidget *window, ***pos;
     firstScreen_t *fs = (firstScreen_t*) data;
@@ -227,6 +243,9 @@ void chooseFile(GtkWidget *widget, gpointer data) {
     gtk_main();
 }
 
+/**
+ * creates a random map of size row x col
+*/
 void playWithRandomMap(GtkWidget *widget, gpointer data) {
     GtkWidget *window, ***pos;
     firstScreen_t *fs = (firstScreen_t*) data;
@@ -266,6 +285,7 @@ int main(int argc, char *argv[]) {
     gtk_container_add(GTK_CONTAINER(firstScreen -> window), firstScreen -> grid);
     gtk_window_set_title(GTK_WINDOW(firstScreen -> window), "The game of life");
     g_signal_connect(firstScreen -> window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
+
     firstScreen -> b1 = gtk_button_new_with_label("RANDOM");
     firstScreen -> b2 = gtk_file_chooser_button_new("Choose map", GTK_FILE_CHOOSER_ACTION_OPEN);
     firstScreen -> text1 = gtk_label_new("Generate random map");
