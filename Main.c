@@ -12,35 +12,37 @@
 #include <unistd.h>
 #endif
 
-#define row 16
-#define col 30
+#define row 30
+#define col 60
 #define ALIVE 1
 #define DEAD 0
 //the update delay in ms
-#define DELAY 200
+#define DELAY 100
 
 typedef struct {
     GtkWidget *window, *grid, *b1, *b2;
     GtkWidget *text1, *text2;
-} firstScreen_t;
+} display_t;
 
 typedef struct {
-    GtkWidget *grid;
+    GtkWidget *grid, ***pos;
     bool **oldMap;
     bool **newMap;
     int columns;
     int rows;
+    guint loopID;
+    boolean running;
 } maps_t;
 
 /**
  * instanciate all the structures for the map
 */
 void instanciateMap(maps_t *map) {
-    map->oldMap = malloc(map->columns * sizeof(bool **));
-    map->newMap = malloc(map->columns * sizeof(bool **));
-    for (int i = 0; i < map->columns; i++) {
-        map->oldMap[i] = malloc(map->rows * sizeof(bool *));
-        map->newMap[i] = malloc(map->rows * sizeof(bool *));
+    map -> oldMap = malloc(map -> columns * sizeof(bool **));
+    map -> newMap = malloc(map -> columns * sizeof(bool **));
+    for (int i = 0; i < map -> columns; i++) {
+        map -> oldMap[i] = malloc(map -> rows * sizeof(bool *));
+        map -> newMap[i] = malloc(map -> rows * sizeof(bool *));
     }
 }
 
@@ -51,11 +53,9 @@ void createRandomMap(maps_t *maps) {
     for (int i = 0; i < row; i++) {
         for (int j = 0; j < col; j++) {
             if (rand() % 2 == 0) {
-                maps->oldMap[i][j] = false;
-            }
-            else {
+                maps -> oldMap[i][j] = false;
+            } else {
                 maps->oldMap[i][j] = true;
-                gtk_widget_set_name(GTK_WIDGET(gtk_grid_get_child_at(GTK_GRID(maps->grid), j, i)), "black");
             }
         }
     }
@@ -67,6 +67,7 @@ void createRandomMap(maps_t *maps) {
 void deserializeMap(maps_t *maps, char *fileName) {
     FILE *file = fopen(fileName, "r");
     char alive;
+
     if (file == NULL) {
         printf("An error occurred while opening the file\n");
         exit(0);
@@ -74,15 +75,16 @@ void deserializeMap(maps_t *maps, char *fileName) {
     fscanf(file, "%d", &maps -> rows);
     fseek(file, 1, SEEK_CUR);
     fscanf(file, "%d", &maps -> columns);
+
     instanciateMap(maps);
     fseek(file, 2, SEEK_CUR);
+
     for (int i = 0; i < maps -> rows; i++) {
         for(int j = 0; j < maps -> columns; j++) {
             fscanf(file, "%c", &alive);
             if (alive - 48 == ALIVE) {
-                maps->oldMap[i][j] = true;
-            }
-            else {
+                maps -> oldMap[i][j] = true;
+            } else {
                 maps -> oldMap[i][j] = false;
             }
         }
@@ -96,6 +98,7 @@ void deserializeMap(maps_t *maps, char *fileName) {
 */
 void freeMap(GtkWidget *widget, gpointer data) {
     maps_t *gameMaps = (maps_t*) data;
+
     for(int i = 0; i < gameMaps -> columns; i++) {
         free(gameMaps -> newMap[i]);
         free(gameMaps -> oldMap[i]);
@@ -115,22 +118,20 @@ int countNear(maps_t *gameMap, int r, int c) {
     int minRow = r - 1, minCol = c - 1, maxRow = r + 2, maxCol = c + 2;
     if (minRow < 0) {
         minRow = 0;
-    }
-    else if (maxRow > gameMap->rows) {
-        maxRow = gameMap->rows;
+    } else if (maxRow > gameMap -> rows) {
+        maxRow = gameMap -> rows;
     }
     if (minCol < 0) {
         minCol = 0;
-    }
-    else if (maxCol > gameMap->columns) {
-        maxCol = gameMap->columns;
+    } else if (maxCol > gameMap -> columns) {
+        maxCol = gameMap -> columns;
     }
     for (int i = minRow; i < maxRow; i++) {
         for (int j = minCol; j < maxCol; j++) {
-            num += gameMap->oldMap[i][j];
+            num += gameMap -> oldMap[i][j];
         }
     }
-    return num - gameMap->oldMap[r][c];
+    return num - gameMap -> oldMap[r][c];
 }
 
 /**
@@ -138,12 +139,12 @@ int countNear(maps_t *gameMap, int r, int c) {
 */
 void myCSS(void) {
     GtkCssProvider *provider;
-    GdkDisplay *display;
+    GdkDisplay *display_t;
     GdkScreen *screen;
 
     provider = gtk_css_provider_new();
-    display = gdk_display_get_default();
-    screen = gdk_display_get_default_screen(display);
+    display_t = gdk_display_get_default();
+    screen = gdk_display_get_default_screen(display_t);
     gtk_style_context_add_provider_for_screen(screen, GTK_STYLE_PROVIDER(provider), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
 
     const gchar *myCssFile = "style.css";
@@ -160,41 +161,39 @@ gint gameLogic(void *mapp) {
     maps_t *map = (maps_t *)mapp;
     int num;
     boolean alive = false;
-    for (int i = 0; i < map->rows; i++) {
-        for (int j = 0; j < map->columns; j++) {
+    for (int i = 0; i < map -> rows; i++) {
+        for (int j = 0; j < map -> columns; j++) {
             num = countNear(map, i, j);
-            if (map->oldMap[i][j]) {
+            if (map -> oldMap[i][j]) {
                 if (num < 2) {
-                    map->newMap[i][j] = false;
+                    map -> newMap[i][j] = false;
                 } else if (num > 1) {
-                    map->newMap[i][j] = true;
+                    map -> newMap[i][j] = true;
                 }
                 if (num > 3) {
-                    map->newMap[i][j] = false;
+                    map -> newMap[i][j] = false;
                 }
             } else {
                 if (num == 3) {
-                    map->newMap[i][j] = true;
-                }
-                else {
-                    map->newMap[i][j] = false;
+                    map -> newMap[i][j] = true;
+                } else {
+                    map -> newMap[i][j] = false;
                 }
             }
-            if (map->newMap[i][j]) {
+            if (map -> newMap[i][j]) {
                 alive = true;
-                gtk_widget_set_name(GTK_WIDGET(gtk_grid_get_child_at(GTK_GRID(map->grid), j, i)), "black");
+                gtk_widget_set_name(GTK_WIDGET(map -> pos[j][i]), "black");
             } else {
-                gtk_widget_set_name(GTK_WIDGET(gtk_grid_get_child_at(GTK_GRID(map->grid), j, i)), "white");
+                gtk_widget_set_name(GTK_WIDGET(map -> pos[j][i]), "white");
             }
         }
     }
-    bool **temp = map->oldMap;
-    map->oldMap = map->newMap;
-    map->newMap = temp;
-    if (alive) {
+    bool **temp = map -> oldMap;
+    map -> oldMap = map -> newMap;
+    map -> newMap = temp;
+    if (alive && map -> running) {
         return 1;
-    }
-    else {
+    } else {
         return 0;
     }
 }
@@ -202,107 +201,152 @@ gint gameLogic(void *mapp) {
 /**
  * destroys unused widget after a button is clicked
 */
-void destroyUselessWidget(firstScreen_t *fs) {
+void destroyUselessWidget(display_t *fs) {
     gtk_widget_destroy(fs -> b1);
     gtk_widget_destroy(fs -> b2);
     gtk_widget_destroy(fs -> text1);
     gtk_widget_destroy(fs -> text2);
 }
 
+void run(GtkWidget *widget, gpointer data) {
+    if(!((maps_t*)data) -> running) {
+        ((maps_t*)data) -> running = true;
+        ((maps_t*)data) -> loopID = g_timeout_add(DELAY, gameLogic, (maps_t*) data);
+    }
+}
+
+void stop(GtkWidget *widget, gpointer data) {
+    ((maps_t*)data) -> running = false;
+}
+
+void modifySize(GtkWidget *widget, gpointer data) {
+    maps_t *map = (maps_t*) data;
+    int size;
+    gtk_widget_get_size_request(map -> pos[0][0], &size, &size);
+    if(strcmp((gtk_widget_get_name(widget)), "sizeUp") == 0) {
+        size++;
+    } else {
+        if(size == 16) {
+            return;
+        }
+        size--;
+    }
+    for(int i = 0; i < map -> rows; i++) {
+        for(int j = 0; j < map -> columns; j++) {
+            gtk_widget_set_size_request(map -> pos[j][i], size, size);
+        }
+    }
+}
+
+void setGameWindow(maps_t *map, display_t *display) {
+    GtkWidget *play = gtk_button_new(), *pause = gtk_button_new(), *sizeUp = gtk_button_new(), *sizeDown = gtk_button_new();
+    GtkWidget *playImage, *pauseImage, *sizeUpImage, *sizeDownImage;
+    
+    destroyUselessWidget(display);
+
+    g_signal_connect(display -> window, "destroy", G_CALLBACK(freeMap), map);
+    map -> grid = display -> grid;
+
+    map -> pos = malloc(map -> columns * sizeof(GtkWidget**));
+    for (int i = 0; i < map -> columns; i++) {
+        map -> pos[i] = malloc(map -> rows * sizeof(GtkWidget*));
+    }
+    for (int i = 0; i < map -> rows; i++) {
+        for (int j = 0; j < map -> columns; j++) {
+            map -> pos[j][i] = gtk_image_new();
+            gtk_widget_set_size_request(map -> pos[j][i], 16, 16);
+            gtk_grid_attach(GTK_GRID(map -> grid), map -> pos[j][i], j, i, 1, 1);
+            if(map -> oldMap[i][j]) {
+                gtk_widget_set_name(GTK_WIDGET(map -> pos[j][i]), "black");
+            }
+        }
+    }
+    gtk_grid_attach(GTK_GRID(map -> grid), play, 0, row, 4, 1);
+    gtk_grid_attach(GTK_GRID(map -> grid), pause, 4, row, 4, 1);
+    gtk_grid_attach(GTK_GRID(map -> grid), sizeUp, col - 2, row, 2, 1);
+    gtk_grid_attach(GTK_GRID(map -> grid), sizeDown, col - 4, row, 2, 1);
+
+    g_signal_connect (play, "clicked", G_CALLBACK (run), map);
+    g_signal_connect (pause, "clicked", G_CALLBACK (stop), map);
+    g_signal_connect (sizeUp, "clicked", G_CALLBACK (modifySize), map);
+    g_signal_connect (sizeDown, "clicked", G_CALLBACK (modifySize), map);
+
+    playImage = gtk_image_new_from_icon_name("media-playback-start", GTK_ICON_SIZE_BUTTON);
+    pauseImage = gtk_image_new_from_icon_name("media-playback-pause", GTK_ICON_SIZE_BUTTON);
+    sizeUpImage = gtk_image_new_from_icon_name("go-up", GTK_ICON_SIZE_BUTTON);
+    sizeDownImage = gtk_image_new_from_icon_name("go-down", GTK_ICON_SIZE_BUTTON);
+
+    gtk_button_set_image(GTK_BUTTON(play), playImage);
+    gtk_button_set_image(GTK_BUTTON(pause), pauseImage);
+    gtk_button_set_image(GTK_BUTTON(sizeUp), sizeUpImage);
+    gtk_button_set_image(GTK_BUTTON(sizeDown), sizeDownImage);
+    gtk_widget_set_name(GTK_WIDGET(play), "play");
+    gtk_widget_set_name(GTK_WIDGET(pause), "pause");
+    gtk_widget_set_name(GTK_WIDGET(sizeUp), "sizeUp");
+    gtk_widget_set_name(GTK_WIDGET(sizeDown), "sizeDown");
+    
+    gtk_widget_show_all(display -> window);
+    gtk_main();
+}
+
 /**
  * creates a map using an existent file
 */
 void chooseFile(GtkWidget *widget, gpointer data) {
-    GtkWidget *window, ***pos;
-    firstScreen_t *fs = (firstScreen_t*) data;
     maps_t *map = malloc(sizeof(maps_t));
-
-    destroyUselessWidget(fs);
     
     char *fileName = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(widget));
-    window = fs -> window;
-    g_signal_connect(window, "destroy", G_CALLBACK(freeMap), map);
-    map -> grid = fs -> grid;
-    
     deserializeMap(map, fileName);
-    pos = malloc(map -> columns * sizeof(GtkWidget**));
-    for (int i = 0; i < map -> columns; i++) {
-        pos[i] = malloc(map -> rows * sizeof(GtkWidget*));
-    }
-    for (int i = 0; i < map -> rows; i++) {
-        for (int j = 0; j < map -> columns; j++) {
-            pos[j][i] = gtk_button_new();
-            gtk_grid_attach(GTK_GRID(map -> grid), pos[j][i], j, i, 1, 1);
-            if(map -> oldMap[i][j]) {
-                gtk_widget_set_name(GTK_WIDGET(gtk_grid_get_child_at(GTK_GRID(map -> grid), j, i)), "black");
-            }
-        }
-    }
-    gtk_widget_show_all(window);
-    g_timeout_add(DELAY, gameLogic, map);
-    gtk_main();
+    
+    setGameWindow(map, (display_t*) data);
 }
 
 /**
  * creates a random map of size row x col
 */
 void playWithRandomMap(GtkWidget *widget, gpointer data) {
-    GtkWidget *window, ***pos;
-    firstScreen_t *fs = (firstScreen_t*) data;
     maps_t *map = malloc(sizeof(maps_t));
-
-    destroyUselessWidget(fs);
-    
-    window = fs -> window;
-    g_signal_connect(window, "destroy", G_CALLBACK(freeMap), map);
-    map -> grid = fs -> grid;
 
     map -> columns = col;
     map -> rows = row;
     instanciateMap(map);
-    pos = malloc(col * sizeof(GtkWidget**));
-    for (int i = 0; i < col; i++) {
-        pos[i] = malloc(row * sizeof(GtkWidget*));
-    }
-    for (int i = 0; i < row; i++) {
-        for (int j = 0; j < col; j++) {
-            pos[j][i] = gtk_button_new();
-            gtk_grid_attach(GTK_GRID(map -> grid), pos[j][i], j, i, 1, 1);
-        }
-    }
     createRandomMap(map);
-    gtk_widget_show_all(window);
-    g_timeout_add(DELAY, gameLogic, map);
-    gtk_main();
+
+    setGameWindow(map, (display_t*) data);
 }
 
 int main(int argc, char *argv[]) {
-    firstScreen_t *firstScreen = malloc(sizeof(firstScreen_t));
+    display_t *display = malloc(sizeof(display_t));
+
     gtk_init(&argc, &argv);
     myCSS();
-    firstScreen -> window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-    firstScreen -> grid = gtk_grid_new();
-    gtk_container_add(GTK_CONTAINER(firstScreen -> window), firstScreen -> grid);
-    gtk_window_set_title(GTK_WINDOW(firstScreen -> window), "The game of life");
-    g_signal_connect(firstScreen -> window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
+    display -> window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    gtk_widget_set_name(GTK_WIDGET(display -> window), "background");
+    display -> grid = gtk_grid_new();
+    gtk_container_add(GTK_CONTAINER(display -> window), display -> grid);
+    gtk_window_set_title(GTK_WINDOW(display -> window), "The game of life");
+    g_signal_connect(display -> window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
+    gtk_window_set_resizable(GTK_WINDOW(display -> window), false);
 
-    firstScreen -> b1 = gtk_button_new_with_label("RANDOM");
-    firstScreen -> b2 = gtk_file_chooser_button_new("Choose map", GTK_FILE_CHOOSER_ACTION_OPEN);
-    firstScreen -> text1 = gtk_label_new("Generate random map");
-    firstScreen -> text2 = gtk_label_new("Or input a map file");
+    display -> b1 = gtk_button_new_with_label("RANDOM");
+    display -> b2 = gtk_file_chooser_button_new("Choose map", GTK_FILE_CHOOSER_ACTION_OPEN);
+    display -> text1 = gtk_label_new("Generate random map");
+    display -> text2 = gtk_label_new("Or input a map file");
 
-    gtk_widget_set_name(firstScreen -> b1, "button");
-    gtk_widget_set_name(firstScreen -> b2, "button");
-    gtk_widget_set_name(firstScreen -> text1, "text");
-    gtk_widget_set_name(firstScreen -> text2, "text");
+    gtk_widget_set_name(display -> b1, "button");
+    gtk_widget_set_name(display -> b2, "button");
+    gtk_widget_set_name(display -> text1, "text");
+    gtk_widget_set_name(display -> text2, "text");
 
-    gtk_grid_attach(GTK_GRID(firstScreen -> grid), firstScreen -> text1, 0, 0, 1, 1);
-    gtk_grid_attach(GTK_GRID(firstScreen -> grid), firstScreen -> b1, 0, 1, 1, 1);
-    g_signal_connect (firstScreen -> b1, "clicked", G_CALLBACK (playWithRandomMap), firstScreen);
-    gtk_grid_attach(GTK_GRID(firstScreen -> grid), firstScreen -> text2, 0, 2, 1, 1);
-    gtk_grid_attach(GTK_GRID(firstScreen -> grid), firstScreen -> b2, 0, 3, 1, 1);
-    g_signal_connect (firstScreen -> b2, "file-set", G_CALLBACK (chooseFile), firstScreen);
-    gtk_widget_show_all(firstScreen -> window);
+    gtk_grid_attach(GTK_GRID(display -> grid), display -> text1, 0, 0, 1, 1);
+    gtk_grid_attach(GTK_GRID(display -> grid), display -> b1, 0, 1, 1, 1);
+    gtk_grid_attach(GTK_GRID(display -> grid), display -> text2, 0, 2, 1, 1);
+    gtk_grid_attach(GTK_GRID(display -> grid), display -> b2, 0, 3, 1, 1);
+
+    g_signal_connect (display -> b1, "clicked", G_CALLBACK (playWithRandomMap), display);
+    g_signal_connect (display -> b2, "file-set", G_CALLBACK (chooseFile), display);
+
+    gtk_widget_show_all(display -> window);
     gtk_main();
     return 0;
 }

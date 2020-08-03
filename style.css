@@ -1,25 +1,51 @@
 #black {
     background-color: black;
-    color: black;
+    background-image: none;
+}
+
+#background {
+    background-color: lightsalmon;
     background-image: none;
 }
 
 #button {
     background-color: white;
-    color: black;
     font-weight: bold;
+    font-size: 20px;
     padding-top: 10px;
     padding-bottom: 10px;
     min-width: 100px;
     min-height: 20px;
     margin-top: 5px;
-    margin-bottom: 10px;
-    margin-left: 50px;
-    margin-right: 50px;
+    margin-bottom: 25px;
+    margin-left: 100px;
+    margin-right: 100px;
+    background-image: none;
+}
+
+#play {
+    background-color: green;
+    background-image: none;
+}
+
+#pause {
+    background-color: red;
+    background-image: none;
+}
+
+#sizeUp {
+    background-color: lightcoral;
+    background-image: none;
+}
+
+#sizeDown {
+    background-color: lightcoral;
     background-image: none;
 }
 
 #text {
     font-weight: bold;
-    margin-top: 10px;
+    font-size: 20px;
+    margin-top: 25px;
+    margin-bottom: 10px;
 }
