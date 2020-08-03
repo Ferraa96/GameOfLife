@@ -28,4 +28,4 @@ Input map format example
 00000000000000000000000000000000000000
 ```
 
-![](https://github.com/Ferraa96/GameOfLife/Documentation/animation.gif)
+![](https://github.com/Ferraa96/GameOfLife/blob/master/Documentation/animation.gif)
