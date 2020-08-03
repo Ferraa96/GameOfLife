@@ -26,6 +26,7 @@ typedef struct {
 
 typedef struct {
     GtkWidget *grid, ***pos;
+    bool **initialMap;
     bool **oldMap;
     bool **newMap;
     int columns;
@@ -38,9 +39,11 @@ typedef struct {
  * instanciate all the structures for the map
 */
 void instanciateMap(maps_t *map) {
+    map -> initialMap = malloc(map -> columns * sizeof(bool **));
     map -> oldMap = malloc(map -> columns * sizeof(bool **));
     map -> newMap = malloc(map -> columns * sizeof(bool **));
     for (int i = 0; i < map -> columns; i++) {
+        map -> initialMap[i] = malloc(map -> rows * sizeof(bool *));
         map -> oldMap[i] = malloc(map -> rows * sizeof(bool *));
         map -> newMap[i] = malloc(map -> rows * sizeof(bool *));
     }
@@ -53,9 +56,11 @@ void createRandomMap(maps_t *maps) {
     for (int i = 0; i < row; i++) {
         for (int j = 0; j < col; j++) {
             if (rand() % 2 == 0) {
+                maps -> initialMap[i][j] = false;
                 maps -> oldMap[i][j] = false;
             } else {
-                maps->oldMap[i][j] = true;
+                maps -> initialMap[i][j] = true;
+                maps -> oldMap[i][j] = true;
             }
         }
     }
@@ -83,8 +88,10 @@ void deserializeMap(maps_t *maps, char *fileName) {
         for(int j = 0; j < maps -> columns; j++) {
             fscanf(file, "%c", &alive);
             if (alive - 48 == ALIVE) {
+                maps -> initialMap[i][j] = true;
                 maps -> oldMap[i][j] = true;
             } else {
+                maps -> initialMap[i][j] = false;
                 maps -> oldMap[i][j] = false;
             }
         }
@@ -99,12 +106,18 @@ void deserializeMap(maps_t *maps, char *fileName) {
 void freeMap(GtkWidget *widget, gpointer data) {
     maps_t *gameMaps = (maps_t*) data;
 
+    gameMaps -> running = false;
+    if(gameMaps -> loopID > 0) {
+        g_source_remove(gameMaps -> loopID);
+    }
     for(int i = 0; i < gameMaps -> columns; i++) {
         free(gameMaps -> newMap[i]);
         free(gameMaps -> oldMap[i]);
+        free(gameMaps -> initialMap[i]);
     }
     free(gameMaps -> newMap);
     free(gameMaps -> oldMap);
+    free(gameMaps -> initialMap);
     free(gameMaps);
     gtk_main_quit();
     exit(0);
@@ -194,6 +207,7 @@ gint gameLogic(void *mapp) {
     if (alive && map -> running) {
         return 1;
     } else {
+        map -> loopID = -2;
         return 0;
     }
 }
@@ -209,14 +223,19 @@ void destroyUselessWidget(display_t *fs) {
 }
 
 void run(GtkWidget *widget, gpointer data) {
-    if(!((maps_t*)data) -> running) {
-        ((maps_t*)data) -> running = true;
-        ((maps_t*)data) -> loopID = g_timeout_add(DELAY, gameLogic, (maps_t*) data);
+    maps_t *map = (maps_t*) data;
+    if(!map -> running) {
+        map -> running = true;
+        map -> loopID = g_timeout_add(DELAY, gameLogic, map);
     }
 }
 
 void stop(GtkWidget *widget, gpointer data) {
-    ((maps_t*)data) -> running = false;
+    maps_t *map = (maps_t*) data;
+    if(map -> running) {
+        map -> running = false;
+        map -> loopID = -2;
+    }
 }
 
 void modifySize(GtkWidget *widget, gpointer data) {
@@ -238,14 +257,40 @@ void modifySize(GtkWidget *widget, gpointer data) {
     }
 }
 
+void reinitiateMap(GtkWidget *widget, gpointer data) {
+    maps_t *map = (maps_t*) data;
+
+    if(map -> loopID == -1) {                               //mai avviato
+        return;
+    }
+    if(map -> loopID != -2) {                               //avviato e fermato
+        g_source_remove(map -> loopID);
+    }
+    map -> running = false;
+    map -> loopID = -1;
+    for(int i = 0; i < map -> rows; i++) {
+        for(int j = 0; j < map -> columns; j++) {
+            if(map -> initialMap[i][j]) {
+                map -> oldMap[i][j] = true;
+                gtk_widget_set_name(GTK_WIDGET(map -> pos[j][i]), "black");
+            } else {
+                map -> oldMap[i][j] = false;
+                gtk_widget_set_name(GTK_WIDGET(map -> pos[j][i]), "white");
+            }
+        }
+    }
+}
+
 void setGameWindow(maps_t *map, display_t *display) {
     GtkWidget *play = gtk_button_new(), *pause = gtk_button_new(), *sizeUp = gtk_button_new(), *sizeDown = gtk_button_new();
-    GtkWidget *playImage, *pauseImage, *sizeUpImage, *sizeDownImage;
+    GtkWidget *redo = gtk_button_new();
+    GtkWidget *playImage, *pauseImage, *sizeUpImage, *sizeDownImage, *redoImage;
     
     destroyUselessWidget(display);
 
     g_signal_connect(display -> window, "destroy", G_CALLBACK(freeMap), map);
     map -> grid = display -> grid;
+    map -> loopID = -1;
 
     map -> pos = malloc(map -> columns * sizeof(GtkWidget**));
     for (int i = 0; i < map -> columns; i++) {
@@ -265,23 +310,28 @@ void setGameWindow(maps_t *map, display_t *display) {
     gtk_grid_attach(GTK_GRID(map -> grid), pause, 4, row, 4, 1);
     gtk_grid_attach(GTK_GRID(map -> grid), sizeUp, col - 2, row, 2, 1);
     gtk_grid_attach(GTK_GRID(map -> grid), sizeDown, col - 4, row, 2, 1);
+    gtk_grid_attach(GTK_GRID(map -> grid), redo, 8, row, 4, 1);
 
     g_signal_connect (play, "clicked", G_CALLBACK (run), map);
     g_signal_connect (pause, "clicked", G_CALLBACK (stop), map);
     g_signal_connect (sizeUp, "clicked", G_CALLBACK (modifySize), map);
     g_signal_connect (sizeDown, "clicked", G_CALLBACK (modifySize), map);
+    g_signal_connect (redo, "clicked", G_CALLBACK (reinitiateMap), map);
 
     playImage = gtk_image_new_from_icon_name("media-playback-start", GTK_ICON_SIZE_BUTTON);
     pauseImage = gtk_image_new_from_icon_name("media-playback-pause", GTK_ICON_SIZE_BUTTON);
-    sizeUpImage = gtk_image_new_from_icon_name("go-up", GTK_ICON_SIZE_BUTTON);
-    sizeDownImage = gtk_image_new_from_icon_name("go-down", GTK_ICON_SIZE_BUTTON);
+    redoImage = gtk_image_new_from_icon_name("edit-undo", GTK_ICON_SIZE_BUTTON);
+    sizeUpImage = gtk_image_new_from_icon_name("list-add", GTK_ICON_SIZE_BUTTON);
+    sizeDownImage = gtk_image_new_from_icon_name("list-remove", GTK_ICON_SIZE_BUTTON);
 
     gtk_button_set_image(GTK_BUTTON(play), playImage);
     gtk_button_set_image(GTK_BUTTON(pause), pauseImage);
+    gtk_button_set_image(GTK_BUTTON(redo), redoImage);
     gtk_button_set_image(GTK_BUTTON(sizeUp), sizeUpImage);
     gtk_button_set_image(GTK_BUTTON(sizeDown), sizeDownImage);
     gtk_widget_set_name(GTK_WIDGET(play), "play");
     gtk_widget_set_name(GTK_WIDGET(pause), "pause");
+    gtk_widget_set_name(GTK_WIDGET(redo), "redo");
     gtk_widget_set_name(GTK_WIDGET(sizeUp), "sizeUp");
     gtk_widget_set_name(GTK_WIDGET(sizeDown), "sizeDown");
     

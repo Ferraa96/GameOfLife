@@ -7,4 +7,3 @@ del tmp.txt
  
 rem echo %pkg-info%
 gcc Main.c -o main.exe -Wall %pkg-info% -mwindows
-main.exe
