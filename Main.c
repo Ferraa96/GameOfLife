@@ -291,6 +291,7 @@ void setGameWindow(maps_t *map, display_t *display) {
     g_signal_connect(display -> window, "destroy", G_CALLBACK(freeMap), map);
     map -> grid = display -> grid;
     map -> loopID = -1;
+    map -> running = false;
 
     map -> pos = malloc(map -> columns * sizeof(GtkWidget**));
     for (int i = 0; i < map -> columns; i++) {
